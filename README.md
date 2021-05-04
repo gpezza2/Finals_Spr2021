@@ -19,5 +19,5 @@ assuming _n_ is equal to height * width and assuming the time complexity of rand
 The next part looks at a queue of registered hits and uses that as a starting point and fires at all coordinates around that point. Since the game is turn-based, only one statement will be executed per shot.
 These statements should all be _O(1)_ as they are only assignment operations and comparisons.
 
-As such the linear operations are the ones we would focus and we see we can expect a _O(n+m)_ for the choose_sector function.
+As such the linear operations are the ones we would focus on and we see we can expect a _O(n+m)_ for the choose_sector function.
 
