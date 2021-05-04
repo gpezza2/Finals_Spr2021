@@ -174,31 +174,45 @@ def visualize(grid,ocean=False):
         for col in row:
             if col is None:
                 print('  ', end=' ')
-            elif r_idx == 0 or col == 'O' or col == '*' or not ocean:
+            elif r_idx == 0:
+                print(col, end=' ')
+            elif col == 'O' or col == '*' or not ocean:
                 print(col+' ', end=' ')
             else:
                 print(col.abbr+' ', end=' ')
         print()
 
 
-def setup_human_game(size, list_of_ships):
+def setup_human_game(size, list_of_ships,debug=False):
     p1_radar, p1_ocean = create_empty_grids(size)
     print("Welcome aboard Commander!")
-    for ship_type in list_of_ships:
-        valid_ship = False
-        while not valid_ship:
-            visualize(p1_ocean, True)
-            location = input(
-                "Enter the location (top left corner) "
-                "where you would like us to deploy our {} ship. eg. (2,3) for row 2 col 3: ".format(ship_type)
-            )
-            curr_ship = ship(ship_type, eval(location))
-            if check_placement(curr_ship, p1_ocean):
-                place_ships(curr_ship, p1_ocean)
-                valid_ship = True
-            else:
-                del curr_ship
-                print('Not a valid ship placement. Try Again')
+    if debug:
+        curr_ship = ship('docking',(0,0))
+        place_ships(curr_ship,p1_ocean)
+        curr_ship = ship('bident', (4, 4))
+        place_ships(curr_ship, p1_ocean)
+        curr_ship = ship('spear', (7, 6))
+        place_ships(curr_ship, p1_ocean)
+        curr_ship = ship('x-defender', (10, 7))
+        place_ships(curr_ship, p1_ocean)
+        curr_ship = ship('dreadnought', (2, 12))
+        place_ships(curr_ship, p1_ocean)
+    else:
+        for ship_type in list_of_ships:
+            valid_ship = False
+            while not valid_ship:
+                visualize(p1_ocean, True)
+                location = input(
+                    "Enter the location (top left corner) "
+                    "where you would like us to deploy our {} ship. eg. (2,3) for row 2 col 3: ".format(ship_type)
+                )
+                curr_ship = ship(ship_type, eval(location))
+                if check_placement(curr_ship, p1_ocean):
+                    place_ships(curr_ship, p1_ocean)
+                    valid_ship = True
+                else:
+                    del curr_ship
+                    print('Not a valid ship placement. Try Again')
     visualize(p1_ocean, True)
     return p1_radar, p1_ocean
 
@@ -243,8 +257,9 @@ def choose_sector(grid, hit_queue):
     :return:
     '''
 
-    if len(hit_queue) > 0 and sector_cleared(grid, hit_queue[0]):
-        hit_queue.popleft()
+    for sector in range(len(hit_queue)):
+        if len(hit_queue) > 0 and sector_cleared(grid, hit_queue[0]):
+            hit_queue.popleft()
 
     if len(hit_queue) == 0:
     # If we don't have a previous hit marker, start firing randomly until we get a hit
@@ -267,57 +282,114 @@ def choose_sector(grid, hit_queue):
     return mgrs_coordinate
 
 
-def play_game(p1_r, p1_o, p2_r, p2_o, list_of_ships):
+def play_game(p1_r, p1_o, p2_r, p2_o, list_of_ships,AI=False):
     p1_sunk_ships = []
     p2_sunk_ships = []
     game_done = False
     player = 1
     hit_queue = deque()
+    turn_counter = 0
     while not game_done:
         if player == 1:
-            print("OCEAN")
-            visualize(p1_o, True)
-            print("RADAR")
-            visualize(p1_r)
-            p1_move = eval(input("Enter the position you would like to fire at (eg. 2,3 for row 2 col 3): "))
-            result = fire_cannons(p1_move, p2_o)
-            if result == False:
-                print("Our cannons can't fire that far Commander, pick a closer sector")
-                continue
-            elif result == True:
-                print("Commander, our shell hit nothing but water!")
-                p1_r[p1_move] = 'O'
-                p2_o[p1_move] = 'O'
+            turn_counter += 1
+            if AI:
+                print("PLAYER 1's TURN")
+                for shot in range(5 - len(p1_sunk_ships), 0, -1):
+                    mgrs = choose_sector(p1_r, hit_queue)
+                    print("Player 1 fired at {}".format(mgrs))
+                    result = fire_cannons(mgrs, p2_o)
+                    if result == True:
+                        p1_r[mgrs] = 'O'
+                        p2_o[mgrs] = 'O'
+                        print("Player 1 missed")
+                    else:
+                        print("Player 1 hit Player 2's {} ship".format(result.type))
+                        p1_r[mgrs] = '*'
+                        p2_o[mgrs] = '*'
+                        hit_queue.append(mgrs)
+                        if result.hit():
+                            print("Player 1 sunk Player 2's {} ship".format(result.type))
+                            p1_sunk_ships.append(result.ship_type)
+                            if (len(p1_sunk_ships) == len(list_of_ships)):
+                                print("Player 1 has won")
+                                game_done = True
             else:
-                print("Commander! We hit an enemy ship!")
-                p1_r[p1_move] = '*'
-                p2_o[p1_move] = '*'
-                if result.hit():
-                    print("Huzzah Commander! We sunk the enemy's {} ship!".format(result.type))
-                    p1_sunk_ships.append(result.ship_type)
-                    if(len(p1_sunk_ships) == len(list_of_ships)):
-                        print("Commander, the enemy armada as been vanquished! The day is ours! HUZZAH!")
-                        game_done = True
+                print("YOUR TURN")
+                shotsTaken = 0
+                maxShots = 5-len(p2_sunk_ships)
+                while shotsTaken < maxShots:
+                    print("OCEAN")
+                    visualize(p1_o, True)
+                    print("RADAR")
+                    visualize(p1_r)
+                    print("Number of shots left: {}".format(maxShots - shotsTaken))
+                    p1_move = eval(input("Enter the position you would like to fire at (eg. 2,3 for row 2 col 3): "))
+                    result = fire_cannons(p1_move, p2_o)
+                    if result == False:
+                        print("Our cannons can't fire that far Commander, pick a closer sector")
+                        continue
+                    elif result == True:
+                        if p1_r[p1_move[0], p1_move[1]] is not None:
+                            print("Commander! We have already fired at that sector, we must conserve ammunition")
+                            continue
+                        print("Commander, our shell hit nothing but water!")
+                        p1_r[p1_move] = 'O'
+                        p2_o[p1_move] = 'O'
+                        shotsTaken += 1
+                    else:
+                        if p1_r[p1_move[0], p1_move[1]] is not None:
+                            print("Commander! We have already fired at that sector, we must conserve ammunition")
+                            continue
+                        print("Commander! We hit an enemy ship!")
+                        p1_r[p1_move] = '*'
+                        p2_o[p1_move] = '*'
+                        shotsTaken += 1
+                        if result.hit():
+                            print("Huzzah Commander! We sunk the enemy's {}!".format(result.type))
+                            p1_sunk_ships.append(result.ship_type)
+                            if(len(p1_sunk_ships) == len(list_of_ships)):
+                                print("Commander, the enemy armada as been vanquished! The day is ours! HUZZAH!")
+                                game_done = True
             player = 2
         elif player == 2:
-            mgrs = choose_sector(p2_r, hit_queue)
-            result = fire_cannons(mgrs,p1_o)
-            if result == True:
-                p2_r[mgrs] = 'O'
-                p1_o[mgrs] = 'O'
-            else:
-                print("Commander, our {} ship has been hit!".format(result.type))
-                p2_r[mgrs] = '*'
-                p1_o[mgrs] = '*'
-                hit_queue.append(mgrs)
-                if result.hit():
-                    print("Commander, our {} ship has been sunk!".format(result.type))
-                    p2_sunk_ships.append(result.ship_type)
-                    if (len(p2_sunk_ships) == len(list_of_ships)):
-                        print("Commander, the enemy has destroyed our armada! We must surrender.")
-                        game_done = True
+            turn_counter += 1
+            print("PLAYER 2's TURN")
+            for shot in range(5 - len(p1_sunk_ships), 0, -1):
+                mgrs = choose_sector(p2_r, hit_queue)
+                if AI:
+                    print("Player 2 fired at {}".format(mgrs))
+                else:
+                    print("Enemy fired at {}".format(mgrs))
+                result = fire_cannons(mgrs,p1_o)
+                if result == True:
+                    p2_r[mgrs] = 'O'
+                    p1_o[mgrs] = 'O'
+                    if AI:
+                        print("Player 2 missed")
+                    else:
+                        print("Commander, the enemy round missed our ships")
+                else:
+                    if AI:
+                        print("Player 2 hit Player 1's {} ship".format(result.type))
+                    else:
+                        print("Commander, our {} ship has been hit!".format(result.type))
+                    p2_r[mgrs] = '*'
+                    p1_o[mgrs] = '*'
+                    hit_queue.append(mgrs)
+                    if result.hit():
+                        if AI:
+                            print("Player 2 sunk Player 2's {} ship".format(result.type))
+                        else:
+                            print("Commander, our {} ship has been sunk!".format(result.type))
+                        p2_sunk_ships.append(result.ship_type)
+                        if (len(p2_sunk_ships) == len(list_of_ships)):
+                            if AI:
+                                print("Player 2 has won")
+                            else:
+                                print("Commander, the enemy has destroyed our armada! We must surrender.")
+                            game_done = True
             player = 1
-
+    print("Game completed in {} turns".format(turn_counter))
 
 
 
@@ -325,10 +397,18 @@ def play_game(p1_r, p1_o, p2_r, p2_o, list_of_ships):
 
 
 if __name__ == '__main__':
-    size = 10
+    size = 15
     list_of_ships = ['docking', 'bident', 'spear', 'x-defender', 'dreadnought']
-    p1_radar, p1_ocean = setup_human_game(size, list_of_ships)
+    ai = input("1. Human vs AI \n2. AI vs AI \nChoose the type of game you'd like to play: ")
+    if int(ai) == 1:
+        p1_radar, p1_ocean = setup_human_game(size, list_of_ships,True)
+    else:
+        p1_radar, p1_ocean = setup_ai_game(size, list_of_ships)
     p2_radar, p2_ocean = setup_ai_game(size, list_of_ships)
-    play_game(p1_radar, p1_ocean, p2_radar, p2_ocean, list_of_ships)
-    visualize(p2_ocean)
+    play_game(p1_radar, p1_ocean, p2_radar, p2_ocean, list_of_ships,True)
+    if int(ai) == 2:
+        print("Player 1's Ocean:")
+        visualize(p1_ocean, True)
+    print("Player 2's Ocean:")
+    visualize(p2_ocean, True)
 
