@@ -6,7 +6,7 @@ The ships in this variation include odd shapes with holes in the middle and offs
 
 The AI in this implementation is rather naive and simply tracks existing hits and uses them to base subsequent shots.
 
-##Algorithmic analysis of AI
+## Algorithmic analysis of AI
 The main section that constituted the AI for the game is the "choose_sector" function. This function is what the AI uses to determine where it will be firing.
 
 At the very top of the function is a process that updates the queue of registered hits to remove any points that have been "cleared" meaning all squares around it have been fired at.
